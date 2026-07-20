@@ -1,2 +1,2 @@
-# Dindaaa
-Cuman Iseng
+# IMSSMS
+telegram bot for imssms.org
