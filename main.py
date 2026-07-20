@@ -23,7 +23,7 @@ except ModuleNotFoundError:
             elif hasattr(file, "read"):
                 _pos = None
                 try:
-                    _pos = file.tell()
+                    _pos = file.tell)
                 except Exception:
                     pass
                 data = file.read(64)
@@ -85,34 +85,34 @@ from telegram.ext import (
 )
 
 # ── CONFIG ──────────────────────────────────────────────────────────────────
-BOT_TOKEN           = "8313925262:AAFBgY13zTdARtEuWuIdFp8-rKac6DopNjU"
-BOT_NAME            = "ᴍʀ.ᴀғʀɪx"
-BOT_USERNAME        = "mrafrix_bot"
-BOT_LINK            = "https://t.me/mrafrix_bot"
-BASE_ADMIN_IDS      = [8339856952]
+BOT_TOKEN           = "8847834994:AAF4A-0-ip7XIXPWIwY2xROK5nR1XeyyGHY"
+BOT_NAME            = "𝙼𝙰𝚇 𝙾𝚃𝙿 𝙿𝙰𝙽𝙽𝙴𝙻"
+BOT_USERNAME        = "maxotppannel_bot"
+BOT_LINK            = "http://t.me/maxotppannel_bot"
+BASE_ADMIN_IDS      = [1574411746]
 
-PANEL_BASE          = "https://imssms.org"
+PANEL_BASE          = "https://Dinda.org"
 PANEL_LOGIN_PAGE    = f"{PANEL_BASE}/login"
 PANEL_SIGNIN_URL    = f"{PANEL_BASE}/signin"
 PANEL_CDR_URL       = f"{PANEL_BASE}/client/SMSCDRStats"
 PANEL_DASHBOARD_URL = f"{PANEL_BASE}/client/SMSDashboard"
 PANEL_DATA_URL      = f"{PANEL_BASE}/client/res/data_smscdr.php"
-PANEL_USERNAME      = "Techbangla"
-PANEL_PASSWORD      = "Techbangla"
+PANEL_USERNAME      = "DindaTes"
+PANEL_PASSWORD      = "DindaTes"
 
-MAIN_CHANNEL        = "@sage_xd"
-MAIN_CHANNEL_LINK   = "https://t.me/sage_xd"
-BACKUP_CHANNEL      = "@mr_afrix"
-BACKUP_CHANNEL_LINK = "https://t.me/mr_afrix"
-THIRD_CHANNEL       = "@oxellabs"
-THIRD_CHANNEL_LINK  = "https://t.me/oxellabs"
-OTP_GROUP_LINK      = "https://t.me/afrixotpgc"
-OTP_GROUP_ID        = -1003053441379
-FORCE_CHANNELS      = ["@sage_xd", "@mr_afrix", "@oxellabs"]
+MAIN_CHANNEL        = "@Mypwni"
+MAIN_CHANNEL_LINK   = "https://t.me/Mypwni"
+BACKUP_CHANNEL      = "@ChOtpMax"
+BACKUP_CHANNEL_LINK = "https://t.me/ChOtpMax"
+THIRD_CHANNEL       = "@ChOtpMax"
+THIRD_CHANNEL_LINK  = "https://t.me/ChOtpMax"
+OTP_GROUP_LINK      = "https://t.me/maxgunsotp"
+OTP_GROUP_ID        = -1003991110285
+FORCE_CHANNELS      = ["@ChOtpMax", "@Mypwni", "@maxgunsotp"]
 
 BANNER_URL          = "https://files.catbox.moe/apvmgp.jpg"
 
-DB_FILE             = "bot.db"
+DB_FILE             = "max.db"
 PORT                = int(os.environ.get("PORT", 8080))
 POLL_INTERVAL       = 5          # faster: every 5s
 KEEPALIVE_INTERVAL  = 60
@@ -459,11 +459,11 @@ def extract_numbers_from_content(content, filename):
 def join_markup():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("SAGE", url=MAIN_CHANNEL_LINK),
-            InlineKeyboardButton("MR.AFRIX", url=BACKUP_CHANNEL_LINK),
+            InlineKeyboardButton("Channel", url=MAIN_CHANNEL_LINK),
+            InlineKeyboardButton("Ch Backup", url=BACKUP_CHANNEL_LINK),
         ],
         [
-            InlineKeyboardButton("OxelLabs", url=THIRD_CHANNEL_LINK),
+            InlineKeyboardButton("Channel", url=THIRD_CHANNEL_LINK),
             InlineKeyboardButton("OTP Group", url=OTP_GROUP_LINK),
         ],
         [InlineKeyboardButton("I've Joined — Verify", callback_data="check_join")],
@@ -499,7 +499,7 @@ def main_menu_inline(user_id=None):
             InlineKeyboardButton("ℹ️ About", callback_data="menu_about"),
         ],
         [
-            InlineKeyboardButton("🔱 OxelLabs", url=THIRD_CHANNEL_LINK),
+            InlineKeyboardButton("🔱 Channel", url=THIRD_CHANNEL_LINK),
         ],
     ]
     if user_id and is_admin(user_id):
@@ -512,10 +512,10 @@ def otp_buttons():
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("📢 Channel", url=MAIN_CHANNEL_LINK),
-            InlineKeyboardButton("📡 MR.AFRIX", url=BACKUP_CHANNEL_LINK),
+            InlineKeyboardButton("📡 ChBackup", url=BACKUP_CHANNEL_LINK),
         ],
         [
-            InlineKeyboardButton("🔱 OxelLabs", url=THIRD_CHANNEL_LINK),
+            InlineKeyboardButton("🔱 Channel", url=THIRD_CHANNEL_LINK),
             InlineKeyboardButton("🤖 Bot", url=BOT_LINK),
         ],
     ])
