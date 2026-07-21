@@ -91,14 +91,12 @@ BOT_USERNAME        = "maxotppannel_bot"
 BOT_LINK            = "http://t.me/maxotppannel_bot"
 BASE_ADMIN_IDS      = [1574411746]
 
-PANEL_BASE          = "https://Dinda.org"
-PANEL_LOGIN_PAGE    = f"{PANEL_BASE}/login"
-PANEL_SIGNIN_URL    = f"{PANEL_BASE}/signin"
-PANEL_CDR_URL       = f"{PANEL_BASE}/client/SMSCDRStats"
-PANEL_DASHBOARD_URL = f"{PANEL_BASE}/client/SMSDashboard"
-PANEL_DATA_URL      = f"{PANEL_BASE}/client/res/data_smscdr.php"
-PANEL_USERNAME      = "DindaTes"
-PANEL_PASSWORD      = "DindaTes"
+PANEL_BASE = "https://www.ivasms.com"
+PANEL_LOGIN_PAGE = f"{PANEL_BASE}/login"
+PANEL_SIGNIN_URL = f"{PANEL_BASE}/signin"
+PANEL_SMS_LIVE_URL = f"{PANEL_BASE}/portal/live/my_sms" # <-- BARU
+PANEL_USERNAME = "EMAIL_KAMU" # GANTI
+PANEL_PASSWORD = "PASSWORD_KAMU" # GANTI
 
 MAIN_CHANNEL        = "@Mypwni"
 MAIN_CHANNEL_LINK   = "https://t.me/Mypwni"
@@ -752,299 +750,75 @@ def solve_captcha(html):
 
 class PanelSession:
     def __init__(self):
-        self._session   = None
+        self._session = None
         self._logged_in = False
-        self._sesskey   = ""
 
     async def _get_session(self):
         if self._session is None or self._session.closed:
-            ssl_ctx   = _make_ssl_context()
-            connector = aiohttp.TCPConnector(
-                ssl=ssl_ctx,
-                limit=10,
-                ttl_dns_cache=300,
-                enable_cleanup_closed=True,
-            )
             self._session = aiohttp.ClientSession(
-                connector=connector,
-                headers={
-                    "User-Agent": (
-                        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 "
-                        "(KHTML, like Gecko) Chrome/139.0.0.0 Mobile Safari/537.36"
-                    ),
-                    "Accept-Language": "en-GB,en;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Accept": (
-                        "text/html,application/xhtml+xml,application/xml;"
-                        "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-                    ),
-                    "Upgrade-Insecure-Requests": "1",
-                    "X-Requested-With": "XMLHttpRequest",
-                },
-                timeout=aiohttp.ClientTimeout(total=60, connect=20),
-                cookie_jar=aiohttp.CookieJar(unsafe=True),
+                connector=aiohttp.TCPConnector(ssl=_make_ssl_context()),
+                headers={"User-Agent": "Mozilla/5.0 Chrome/120"},
+                timeout=aiohttp.ClientTimeout(total=60),
+                cookie_jar=aiohttp.CookieJar(unsafe=True)
             )
         return self._session
 
     async def login(self):
         try:
-            if self._session and not self._session.closed:
-                await self._session.close()
-                self._session = None
-
             sess = await self._get_session()
-
-            # fetch login page for etkk token + captcha
-            login_html = ""
-            try:
-                async with sess.get(
-                    PANEL_LOGIN_PAGE,
-                    allow_redirects=True,
-                    timeout=aiohttp.ClientTimeout(total=30),
-                ) as resp:
-                    login_html = await resp.text(errors="replace")
-                    logger.info(f"Login page: status={resp.status}")
-            except Exception as e:
-                logger.error(f"Login page fetch error: {e}")
-                return False
-
-            if not login_html:
-                return False
-
-            soup = BeautifulSoup(login_html, "html.parser")
-            etkk = ""
-            etkk_inp = soup.find("input", {"name": "etkk"})
-            if etkk_inp:
-                etkk = etkk_inp.get("value", "")
-            if not etkk:
-                m = re.search(r'name=["\']etkk["\'][^>]*value=["\']([^"\']+)["\']', login_html)
-                if not m:
-                    m = re.search(r'value=["\']([^"\']+)["\'][^>]*name=["\']etkk["\']', login_html)
-                if m:
-                    etkk = m.group(1)
-
-            capt = solve_captcha(login_html)
-            logger.info(f"etkk={'found' if etkk else 'missing'}, capt={capt}")
-
-            form_data = aiohttp.FormData()
-            if etkk:
-                form_data.add_field("etkk", etkk)
-            form_data.add_field("username", PANEL_USERNAME)
-            form_data.add_field("password", PANEL_PASSWORD)
-            form_data.add_field("capt", capt)
-
-            async with sess.post(
-                PANEL_SIGNIN_URL,
-                data=form_data,
-                headers={
-                    "Referer": PANEL_LOGIN_PAGE,
-                    "Origin": PANEL_BASE,
-                    "Sec-Fetch-Site": "same-origin",
-                    "Sec-Fetch-Mode": "navigate",
-                    "Sec-Fetch-User": "?1",
-                    "Sec-Fetch-Dest": "document",
-                },
-                allow_redirects=True,
-                max_redirects=10,
-                timeout=aiohttp.ClientTimeout(total=30),
-            ) as resp:
-                final_url = str(resp.url).lower()
-                body      = await resp.text(errors="replace")
-                logger.info(f"Signin: status={resp.status}, url={final_url}")
-
-                if "login" not in final_url and resp.status in (200, 302):
+            async with sess.get(PANEL_LOGIN_PAGE) as resp:
+                soup = BeautifulSoup(await resp.text(errors="replace"), "html.parser")
+            token = soup.find('input', {'name': '_token'})['value'] if soup.find('input', {'name': '_token'}) else ""
+            data = aiohttp.FormData()
+            data.add_field('_token', token)
+            data.add_field('email', PANEL_USERNAME)
+            data.add_field('password', PANEL_PASSWORD)
+            async with sess.post(PANEL_SIGNIN_URL, data=data, allow_redirects=True) as resp:
+                if "portal" in str(resp.url).lower():
                     self._logged_in = True
-                    # extract sesskey from CDR page
-                    await self._fetch_sesskey(sess)
-                    logger.info(f"Panel login OK -> sesskey={'found' if self._sesskey else 'missing'}")
+                    logger.info("Login Ivasms OK")
                     return True
-                if any(w in final_url for w in ("dashboard", "client", "agent", "sms")):
-                    self._logged_in = True
-                    await self._fetch_sesskey(sess)
-                    return True
-
-                logger.error(f"Login failed | url={final_url} | status={resp.status}")
+                logger.error(f"Login gagal. Status: {resp.status}")
                 return False
-
         except Exception as e:
-            logger.error(f"Login exception: {type(e).__name__}: {e}")
+            logger.error(f"Login error: {e}")
             return False
-
-    async def _fetch_sesskey(self, sess):
-        """Hit the CDR stats page to grab the sesskey DataTables uses."""
-        try:
-            async with sess.get(
-                PANEL_CDR_URL,
-                allow_redirects=True,
-                timeout=aiohttp.ClientTimeout(total=20),
-            ) as resp:
-                html = await resp.text(errors="replace")
-                # try multiple patterns — the panel embeds it in JS in various ways
-                patterns = [
-                    r'["\']sesskey["\']\s*[,:=]\s*["\']([A-Za-z0-9+/=_\-]{10,})["\']',
-                    r'sesskey\s*=\s*["\']([A-Za-z0-9+/=_\-]{10,})["\']',
-                    r'var\s+sesskey\s*=\s*["\']([A-Za-z0-9+/=_\-]{10,})["\']',
-                    r'data\[.sesskey.\]\s*=\s*["\']([A-Za-z0-9+/=_\-]{10,})["\']',
-                    r'sesskey["\s:=]+([A-Za-z0-9+/=_\-]{10,})',
-                ]
-                for pat in patterns:
-                    m = re.search(pat, html)
-                    if m:
-                        self._sesskey = m.group(1)
-                        logger.info(f"sesskey extracted: {self._sesskey[:12]}...")
-                        return
-                # fallback: try hidden input field
-                soup = BeautifulSoup(html, "html.parser")
-                inp  = soup.find("input", {"name": "sesskey"})
-                if inp:
-                    self._sesskey = inp.get("value", "")
-                    logger.info(f"sesskey from input: {self._sesskey[:12]}...")
-                else:
-                    logger.warning("sesskey not found — CDR requests will proceed without it")
-        except Exception as e:
-            logger.warning(f"sesskey fetch warning: {e}")
 
     async def keepalive(self):
         try:
             sess = await self._get_session()
-            async with sess.get(
-                PANEL_DASHBOARD_URL,
-                allow_redirects=True,
-                timeout=aiohttp.ClientTimeout(total=20),
-            ) as resp:
-                final_url = str(resp.url).lower()
-                if "login" in final_url:
+            async with sess.get(PANEL_SMS_LIVE_URL) as resp:
+                if "login" in str(resp.url).lower():
                     self._logged_in = False
-                    logger.warning("Keepalive: session expired")
                     return False
-                logger.info(f"Keepalive OK")
-                return True
-        except Exception as e:
-            logger.error(f"Keepalive error: {e}")
+            return True
+        except Exception:
             return False
 
-    async def fetch_cdr(self):
-        """
-        Fetch SMS CDR data from the DataTables JSON endpoint.
-        Returns (list_of_rows, error_string_or_None)
-        Each row dict: {date, range, number, service, sms}
-        """
+    async def fetch_sms(self): # <-- INI PENGGANTI fetch_cdr
         try:
             sess = await self._get_session()
-            now  = datetime.now()
-
-            params = {
-                "fdate1":         now.strftime("%Y-%m-%d 00:00:00"),
-                "fdate2":         now.strftime("%Y-%m-%d 23:59:59"),
-                "frange":         "",
-                "fnum":           "",
-                "fcli":           "",
-                "fgdate":         "",
-                "fgmonth":        "",
-                "fgrange":        "",
-                "fgnumber":       "",
-                "fgcli":          "",
-                "fg":             "0",
-                "sesskey":        self._sesskey,
-                "sEcho":          "1",
-                "iColumns":       "7",
-                "sColumns":       ",,,,,,",
-                "iDisplayStart":  "0",
-                "iDisplayLength": "-1",
-                "mDataProp_0":    "0",
-                "sSearch_0":      "",
-                "bRegex_0":       "false",
-                "bSearchable_0":  "true",
-                "bSortable_0":    "true",
-                "mDataProp_1":    "1",
-                "sSearch_1":      "",
-                "bRegex_1":       "false",
-                "bSearchable_1":  "true",
-                "bSortable_1":    "true",
-                "mDataProp_2":    "2",
-                "sSearch_2":      "",
-                "bRegex_2":       "false",
-                "bSearchable_2":  "true",
-                "bSortable_2":    "true",
-                "mDataProp_3":    "3",
-                "sSearch_3":      "",
-                "bRegex_3":       "false",
-                "bSearchable_3":  "true",
-                "bSortable_3":    "true",
-                "mDataProp_4":    "4",
-                "sSearch_4":      "",
-                "bRegex_4":       "false",
-                "bSearchable_4":  "true",
-                "bSortable_4":    "true",
-                "mDataProp_5":    "5",
-                "sSearch_5":      "",
-                "bRegex_5":       "false",
-                "bSearchable_5":  "true",
-                "bSortable_5":    "true",
-                "mDataProp_6":    "6",
-                "sSearch_6":      "",
-                "bRegex_6":       "false",
-                "bSearchable_6":  "true",
-                "bSortable_6":    "true",
-                "sSearch":        "",
-                "bRegex":         "false",
-                "iSortCol_0":     "0",
-                "sSortDir_0":     "desc",
-                "iSortingCols":   "1",
-                "_":              str(int(time.time() * 1000)),
-            }
-
-            async with sess.get(
-                PANEL_DATA_URL,
-                params=params,
-                headers={
-                    "Referer":           PANEL_CDR_URL,
-                    "Accept":            "application/json, text/javascript, */*; q=0.01",
-                    "X-Requested-With":  "XMLHttpRequest",
-                    "Sec-Fetch-Dest":    "empty",
-                    "Sec-Fetch-Mode":    "cors",
-                    "Sec-Fetch-Site":    "same-origin",
-                },
-                allow_redirects=True,
-                timeout=aiohttp.ClientTimeout(total=40),
-            ) as resp:
-                final_url = str(resp.url).lower()
-                if "login" in final_url:
+            async with sess.get(PANEL_SMS_LIVE_URL, timeout=20) as resp:
+                if "login" in str(resp.url).lower():
                     self._logged_in = False
                     return None, "session_expired"
-
-                text = await resp.text(errors="replace")
-
-                # parse JSON
-                try:
-                    data = json.loads(text)
-                except Exception:
-                    logger.warning(f"CDR response not JSON, len={len(text)}")
-                    return None, "parse_error"
-
-                aa = data.get("aaData", [])
-                rows = []
-                for row in aa:
-                    if len(row) < 5:
-                        continue
-                    rows.append({
-                        "date":    str(row[0]).strip(),
-                        "range":   str(row[1]).strip(),
-                        "number":  str(row[2]).strip(),
-                        "service": str(row[3]).strip(),
-                        "sms":     str(row[4]).strip(),
-                    })
-                return rows, None
-
+                html = await resp.text(errors="replace")
+            soup = BeautifulSoup(html, "html.parser")
+            rows = []
+            for tr in soup.select('#LiveTestSMS tbody tr'):
+                tds = tr.find_all('td')
+                if len(tds) < 4: continue
+                rows.append({
+                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "number": tds[0].get_text(strip=True),
+                    "service": tds[1].get_text(strip=True),
+                    "sms": tds[3].get_text(strip=True) if len(tds)>3 else ""
+                })
+            return rows, None
         except Exception as e:
-            logger.error(f"Fetch CDR error: {e}")
             return None, str(e)
 
-    async def close(self):
-        if self._session and not self._session.closed:
-            await self._session.close()
-
-
-panel = PanelSession()
+panel = PanelSession() 
 
 
 # ── OTP MESSAGE FORMAT ────────────────────────────────────────────────────────
