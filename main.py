@@ -756,8 +756,12 @@ class PanelSession:
     async def _get_session(self):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession(
-                connector=aiohttp.TCPConnector(ssl=_make_ssl_context()),
-                headers={"User-Agent": "Mozilla/5.0 Chrome/120"},
+                connector=aiohttp.TCPConnector(ssl=False),
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
                 timeout=aiohttp.ClientTimeout(total=60),
                 cookie_jar=aiohttp.CookieJar(unsafe=True)
             )
@@ -766,20 +770,47 @@ class PanelSession:
     async def login(self):
         try:
             sess = await self._get_session()
-            async with sess.get(PANEL_LOGIN_PAGE) as resp:
-                soup = BeautifulSoup(await resp.text(errors="replace"), "html.parser")
-            token = soup.find('input', {'name': '_token'})['value'] if soup.find('input', {'name': '_token'}) else ""
-            data = aiohttp.FormData()
-            data.add_field('_token', token)
-            data.add_field('email', PANEL_USERNAME)
-            data.add_field('password', PANEL_PASSWORD)
-            async with sess.post(PANEL_SIGNIN_URL, data=data, allow_redirects=True) as resp:
-                if "portal" in str(resp.url).lower():
+
+            # Ivasms baru: langsung POST tanpa ambil token
+            payload = {
+                'email': PANEL_USERNAME,
+                'password': PANEL_PASSWORD,
+            }
+
+            async with sess.post(
+                PANEL_SIGNIN_URL,
+                data=payload,
+                allow_redirects=False, # penting biar bisa cek 302
+                headers={
+                    "Referer": PANEL_LOGIN_PAGE,
+                    "Origin": PANEL_BASE,
+                }
+            ) as resp:
+
+                # Kalau sukses ivasms akan 302 redirect ke /portal
+                if resp.status == 302 and "/portal" in resp.headers.get('Location', ''):
                     self._logged_in = True
                     logger.info("Login Ivasms OK")
                     return True
-                logger.error(f"Login gagal. Status: {resp.status}")
+
+                # Kadang langsung 200 ke dashboard
+                if resp.status == 200:
+                    body = await resp.text(errors="replace")
+                    if "dashboard" in body.lower() or "portal" in body.lower():
+                        self._logged_in = True
+                        logger.info("Login Ivasms OK")
+                        return True
+
+                # Cek error
+                body = await resp.text(errors="replace")
+                if "credentials" in body.lower():
+                    logger.error("Email/Password salah")
+                elif "blocked" in body.lower():
+                    logger.error("IP diblokir Cloudflare")
+                else:
+                    logger.error(f"Login gagal. Status: {resp.status}")
                 return False
+
         except Exception as e:
             logger.error(f"Login error: {e}")
             return False
@@ -795,7 +826,7 @@ class PanelSession:
         except Exception:
             return False
 
-    async def fetch_sms(self): # <-- INI PENGGANTI fetch_cdr
+    async def fetch_sms(self):
         try:
             sess = await self._get_session()
             async with sess.get(PANEL_SMS_LIVE_URL, timeout=20) as resp:
@@ -803,22 +834,25 @@ class PanelSession:
                     self._logged_in = False
                     return None, "session_expired"
                 html = await resp.text(errors="replace")
+
             soup = BeautifulSoup(html, "html.parser")
             rows = []
-            for tr in soup.select('#LiveTestSMS tbody tr'):
-                tds = tr.find_all('td')
-                if len(tds) < 4: continue
-                rows.append({
-                    "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "number": tds[0].get_text(strip=True),
-                    "service": tds[1].get_text(strip=True),
-                    "sms": tds[3].get_text(strip=True) if len(tds)>3 else ""
-                })
+            table = soup.find('table', {'id': 'LiveTestSMS'})
+            if table:
+                for tr in table.find('tbody').find_all('tr'):
+                    tds = tr.find_all('td')
+                    if len(tds) < 4: continue
+                    rows.append({
+                        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "number": tds[0].get_text(strip=True),
+                        "service": tds[1].get_text(strip=True),
+                        "sms": tds[3].get_text(strip=True) if len(tds)>3 else ""
+                    })
             return rows, None
         except Exception as e:
             return None, str(e)
 
-panel = PanelSession() 
+panel = PanelSession()
 
 
 # ── OTP MESSAGE FORMAT ────────────────────────────────────────────────────────
