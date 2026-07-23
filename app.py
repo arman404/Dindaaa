@@ -6,12 +6,10 @@ import sqlite3
 import threading
 from datetime import datetime, timedelta
 import requests
-from bs4 import BeautifulSoup
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 # ================= BOT CONFIG =================
-# Disarankan menggunakan Environment Variable untuk keamanan token
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8736897063:AAFyzy-SN7-GIPPZJj7ofwKnVihNj_LTQi0")
 CHAT_IDS = ["-1003991110285"]
 CHECK_INTERVAL = 3
@@ -78,7 +76,8 @@ init_db()
 WEB_PANELS = [
   {
     "name": "LAMIX SMS",
-    "API_KEY": "https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/console",
+    "apiUrl": "https://api.2oo9.cloud/MXS47FLFX0U/tness/@public/api/console",
+    "apiKey": "M80ACRPH909"  # Isi jika API memerlukan key/token tambahan
   }
 ]
 
@@ -98,7 +97,7 @@ COUNTRY_PREFIXES = {
   "81": ["🇯🇵#JP"], "82": ["🇰🇷#KR"], "84": ["🇻🇳#VN"], "86": ["🇨🇳#CN"],
   "90": ["🇹🇷#TR"], "91": ["🇮🇳#IN"], "92": ["🇵🇰#PK"], "93": ["🇦🇫#AF"],
   "94": ["🇱🇰#LK"], "95": ["🇲🇲#MM"], "98": ["🇮🇷#IR"],
-  "212": ["🇲🇦#MA"], "213": ["🇩🇿#DZ"], "216": ["🇹🇳#TN"], "218": ["🇱🇾#LY"],
+  "212": ["🇲🇦#MA"], "213": ["🇩ℤ#DZ"], "216": ["🇹🇳#TN"], "218": ["🇱🇾#LY"],
   "234": ["🇳🇬#NG"], "254": ["🇰🇪#KE"], "255": ["🇹🇿#TZ"], "256": ["🇺🇬#UG"],
   "880": ["🇧🇩#BD"], "886": ["🇹🇼#TW"], "960": ["🇲🇻#MV"],
   "961": ["🇱🇧#LB"], "962": ["🇯🇴#JO"], "963": ["🇸🇾#SY"], "964": ["🇮🇶#IQ"],
@@ -862,90 +861,56 @@ def send_to_telegram(number, otp, cli, date, panel_name):
         log(f"❌ [{panel_name}] Gagal kirim Telegram: {e}")
         return False
 
-# ================= SMS WORKER =================
+# ================= SMS WORKER (API VERSION) =================
 class SmsPanelWorker:
     def __init__(self, config):
-        self.name = config["name"]
-        self.baseUrl = config["baseUrl"]
-        self.loginUrl = config["loginUrl"]
-        self.signinUrl = config["signinUrl"]
-        self.smsApiUrl = config["smsApiUrl"]
-        self.username = config["username"]
-        self.password = config["password"]
-        self.is_logged_in = False
+        self.name = config.get("name", "SMS Panel")
+        self.apiUrl = config.get("apiUrl") or config.get("API_KEY")
+        self.apiKey = config.get("apiKey", "")
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Origin": self.baseUrl,
-            "Referer": self.loginUrl
+            "Accept": "application/json"
         })
-
-    def solve_captcha(self, html):
-        try:
-            soup = BeautifulSoup(html, 'html.parser')
-            capt_input = soup.find("input", {"name": "capt"})
-            if capt_input and capt_input.parent:
-                text = capt_input.parent.get_text()
-                match = re.search(r"What is (\d+)\s*([\+\-])\s*(\d+)\s*=\s*\?", text)
-                if match:
-                    n1, op, n2 = match.groups()
-                    return int(n1) + int(n2) if op == "+" else int(n1) - int(n2)
-            return 5
-        except:
-            return 5
-
-    def login(self):
-        try:
-            log(f"🔑[{self.name}] Akses login...")
-            res = self.session.get(self.loginUrl, timeout=15)
-            capt = self.solve_captcha(res.text)
-            payload = {
-                "username": self.username,
-                "password": self.password,
-                "capt": capt
-            }
-            post_res = self.session.post(self.signinUrl, data=payload, timeout=15)
-            if "dashboard" in post_res.text or "logout" in post_res.text:
-                log(f"✅ [{self.name}] Login Berhasil! Bot standby...")
-                self.is_logged_in = True
-                return True
-            log(f"❌ [{self.name}] Login Gagal. Mencoba lagi nanti...")
-            return False
-        except Exception as e:
-            log(f"⚠️ [{self.name}] Error saat login: {e}")
-            return False
 
     def check_sms(self):
         try:
-            now = datetime.now()
-            today_str = now.strftime("%Y-%m-%d")
-            yesterday_str = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+            params = {}
+            if self.apiKey:
+                params["api_key"] = self.apiKey
 
-            payload = {
-                "draw": "1",
-                "start": "0",
-                "length": "20",
-                "fdate1": f"{yesterday_str} 00:00:00",
-                "fdate2": f"{today_str} 23:59:59",
-                "fg": "0"
-            }
-            headers = {"X-Requested-With": "XMLHttpRequest"}
-            res = self.session.post(self.smsApiUrl, data=payload, headers=headers, timeout=15)
+            res = self.session.get(self.apiUrl, params=params, timeout=15)
+            if res.status_code != 200:
+                log(f"⚠️ [{self.name}] HTTP Error {res.status_code}")
+                return False
 
-            data = res.json()
-            rows = data.get("aaData") or data.get("data") or []
+            try:
+                data = res.json()
+            except Exception:
+                log(f"⚠️ [{self.name}] Respons API bukan format JSON")
+                return False
+
+            rows = []
+            if isinstance(data, list):
+                rows = data
+            elif isinstance(data, dict):
+                rows = data.get("aaData") or data.get("data") or data.get("messages") or data.get("result") or []
 
             for row in rows:
                 if isinstance(row, list):
-                    date, number, cli, sms = row[0], row[2], row[3], row[4]
+                    date = row[0] if len(row) > 0 else ""
+                    number = row[2] if len(row) > 2 else ""
+                    cli = row[3] if len(row) > 3 else ""
+                    sms = row[4] if len(row) > 4 else ""
+                elif isinstance(row, dict):
+                    date = row.get("date") or row.get("calldate") or row.get("created_at") or ""
+                    number = row.get("number") or row.get("num") or row.get("phone") or ""
+                    sms = row.get("sms") or row.get("message") or row.get("msg") or row.get("text") or ""
+                    cli = row.get("cli") or row.get("service") or row.get("sender") or ""
                 else:
-                    date = row.get("date") or row.get("calldate", "")
-                    number = row.get("number") or row.get("num", "")
-                    sms = row.get("sms") or row.get("message") or row.get("msg", "")
-                    cli = row.get("cli") or row.get("service", "")
+                    continue
 
-                if not sms or sms == "N/A" or not number:
+                if not sms or str(sms).upper() == "N/A" or not number:
                     continue
 
                 otp = extract_otp(sms)
@@ -960,19 +925,12 @@ class SmsPanelWorker:
             return True
         except Exception as e:
             log(f"⚠️ [{self.name}] checkSMS error: {e}")
-            self.is_logged_in = False
             return False
 
     def start_loop(self):
+        log(f"✅ [{self.name}] Worker API aktif, memantau SMS...")
         while True:
-            if not self.is_logged_in:
-                self.login()
-                if not self.is_logged_in:
-                    time.sleep(5)
-            else:
-                ok = self.check_sms()
-                if not ok:
-                    log(f"⚠️ [{self.name}] Sesi terputus. Menyiapkan login ulang...")
+            self.check_sms()
             time.sleep(CHECK_INTERVAL)
 
 # ================= MAIN =================
